@@ -8,10 +8,7 @@ const std = @import("std");
 // we're basically using the C api from zig
 extern fn __enzyme_autodiff(func: *anyopaque, x: f32) f32;
 
-pub fn square(x: f32) f32 {
-    return x * x;
-}
-
+// enzyme uses the C calling convention, so we need to annotate the function we want to differentiate
 pub fn cos(x: f32) callconv(.C) f32 {
     return std.math.cos(x);
 }
