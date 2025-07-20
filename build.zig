@@ -34,15 +34,22 @@ pub fn build(b: *std.Build) void {
     const ir_file = b.addInstallFile(exe.getEmittedLlvmIr(), "input.ll");
 
     // Enzyme was installed via homebrew and brought llvm-19 with it, so we'll run the AD pass using opt from it's dependency
-    const run_cmd = b.addSystemCommand(&[_][]const u8{"/opt/homebrew/Cellar/llvm@19/19.1.7/bin/opt"});
-    run_cmd.addFileArg(b.path("zig-out/input.ll"));
-    run_cmd.addArg("--load-pass-plugin=/opt/homebrew/Cellar/enzyme/0.0.186/lib/LLVMEnzyme-19.dylib");
-    run_cmd.addArg("-passes=enzyme");
-    run_cmd.addArg("-o");
-    const generated_file = run_cmd.addOutputFileArg("output.ll");
-    run_cmd.addArg("-S");
+    const enzyme_pass = b.addSystemCommand(&[_][]const u8{"/opt/homebrew/Cellar/llvm@19/19.1.7/bin/opt"});
 
-    run_cmd.step.dependOn(&ir_file.step);
+    // llvm 20 segfaults
+    // const enzyme_pass = b.addSystemCommand(&[_][]const u8{"/opt/homebrew/Cellar/llvm/20.1.7/bin/opt"});
+
+    enzyme_pass.addFileArg(b.path("zig-out/input.ll"));
+    enzyme_pass.addArg("--load-pass-plugin=/opt/homebrew/Cellar/enzyme/0.0.186/lib/LLVMEnzyme-19.dylib");
+    enzyme_pass.addArg("-passes=enzyme");
+    enzyme_pass.addArg("-o");
+    const generated_file = enzyme_pass.addOutputFileArg("output.ll");
+    enzyme_pass.addArg("-S");
+
+    enzyme_pass.step.dependOn(&ir_file.step);
+
+    const install_enzyme_out = b.addInstallFile(generated_file, "output.ll");
+    install_enzyme_out.step.dependOn(&enzyme_pass.step);
 
     const real_exe = b.addExecutable(.{
         .name = "output",
@@ -51,7 +58,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     real_exe.addCSourceFile(.{ .file = generated_file });
-    real_exe.step.dependOn(&run_cmd.step);
+    real_exe.step.dependOn(&install_enzyme_out.step);
 
     // // This declares intent for the executable to be installed into the
     // // standard location when the user invokes the "install" step (the default
